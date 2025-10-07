@@ -26,28 +26,60 @@ def check_stock(collection_id=223, keyword=None, debug=False):
         list: List of in-stock products
     """
     try:
-        api_url = f"https://cdn-global.popmart.com/shop_productoncollection-{collection_id}-1-1-jp-ja.json"
         headers = {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
             'Accept': '*/*',
             'Referer': 'https://www.popmart.com/',
         }
 
-        response = requests.get(api_url, headers=headers, timeout=30)
-        response.raise_for_status()
+        # Fetch all pages
+        # URL pattern: shop_productoncollection-{collection_id}-1-{page}-jp-ja.json
+        all_products = []
+        page = 1
+        total_products = None
+        collection_name = None
 
-        data = response.json()
+        while True:
+            api_url = f"https://cdn-global.popmart.com/shop_productoncollection-{collection_id}-1-{page}-jp-ja.json"
+
+            try:
+                response = requests.get(api_url, headers=headers, timeout=30)
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                # 404 means no more pages
+                if e.response.status_code == 404:
+                    break
+                raise
+
+            data = response.json()
+
+            if page == 1:
+                total_products = data.get('total', 0)
+                collection_name = data.get('name', 'Unknown')
+
+            products = data.get('productData', [])
+            if not products:
+                break
+
+            all_products.extend(products)
+
+            # If we've fetched all products, stop
+            if total_products and len(all_products) >= total_products:
+                break
+
+            page += 1
 
         if debug:
             print(f"\n=== DEBUG MODE ===")
-            print(f"Collection: {data.get('name', 'Unknown')}")
-            print(f"Total products: {data.get('total', 0)}")
-            print(f"API URL: {api_url}")
+            print(f"Collection: {collection_name}")
+            print(f"Total products: {total_products}")
+            print(f"Fetched products: {len(all_products)}")
+            print(f"Pages fetched: {page}")
             print("==================\n")
 
         in_stock_products = []
 
-        for product in data.get('productData', []):
+        for product in all_products:
             product_title = product.get('title', '')
 
             # Filter by keyword if specified
