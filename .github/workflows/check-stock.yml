@@ -32,5 +32,6 @@ jobs:
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           COLLECTION_ID: ${{ secrets.COLLECTION_ID }}
           KEYWORD: ${{ secrets.KEYWORD }}
+          DEBUG_MODE: ${{ secrets.DEBUG_MODE }}
         run: |
           python check_stock.py
