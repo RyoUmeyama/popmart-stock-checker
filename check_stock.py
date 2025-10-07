@@ -159,7 +159,8 @@ def send_email_notification(smtp_server, smtp_port, username, password, recipien
 def main():
     """Main function"""
     # Configuration
-    collection_id = int(os.environ.get('COLLECTION_ID', '223'))  # 223 = THE MONSTERS
+    collection_id_str = os.environ.get('COLLECTION_ID', '223')
+    collection_id = int(collection_id_str) if collection_id_str else 223  # 223 = THE MONSTERS
     keyword = os.environ.get('KEYWORD', '')  # Optional: filter by keyword (e.g., "LABUBU")
 
     # Check for debug mode
