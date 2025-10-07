@@ -9,11 +9,17 @@ import sys
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import requests
 import json
 
 STOCK_HISTORY_FILE = 'stock_history.json'
+JST = timezone(timedelta(hours=9))
+
+
+def get_jst_now():
+    """Get current time in JST"""
+    return datetime.now(JST)
 
 
 def load_previous_stock():
@@ -31,7 +37,7 @@ def save_current_stock(product_ids):
     """Save current stock status to file"""
     try:
         with open(STOCK_HISTORY_FILE, 'w') as f:
-            json.dump({'product_ids': list(product_ids), 'timestamp': datetime.now().isoformat()}, f)
+            json.dump({'product_ids': list(product_ids), 'timestamp': get_jst_now().isoformat()}, f)
     except Exception as e:
         print(f"Warning: Could not save stock history: {e}")
 
@@ -171,7 +177,7 @@ def send_email_notification(smtp_server, smtp_port, username, password, recipien
         # Create text version
         text_lines = [
             'POP MARTで商品が入荷しました。',
-            f'\nチェック日時: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+            f'\nチェック日時: {get_jst_now().strftime("%Y-%m-%d %H:%M:%S")} (JST)',
             f'\n入荷商品数: {len(products)}件\n'
         ]
 
@@ -187,7 +193,7 @@ def send_email_notification(smtp_server, smtp_port, username, password, recipien
         html_lines = [
             '<html><body>',
             '<h2>POP MART - 商品が入荷しました！</h2>',
-            f'<p><strong>チェック日時:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>',
+            f'<p><strong>チェック日時:</strong> {get_jst_now().strftime("%Y-%m-%d %H:%M:%S")} (JST)</p>',
             f'<p><strong>入荷商品数:</strong> {len(products)}件</p>',
             '<hr>'
         ]
@@ -249,7 +255,7 @@ def main():
     print(f"Checking POP MART stock (Collection ID: {collection_id})")
     if keyword:
         print(f"Filtering by keyword: {keyword}")
-    print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Timestamp: {get_jst_now().strftime('%Y-%m-%d %H:%M:%S')} (JST)")
     if debug_mode:
         print("DEBUG MODE: ON")
 
