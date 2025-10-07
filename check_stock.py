@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+"""
+POP MART Stock Checker
+Checks for THE MONSTERS (LABUBU) stock availability and sends email notifications
+"""
+
+import os
+import sys
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime
+import requests
+
+
+def check_stock(collection_id=223, keyword=None, debug=False):
+    """
+    Check stock availability for products in a collection
+
+    Args:
+        collection_id: Collection ID to check (default: 223 for THE MONSTERS)
+        keyword: Filter products by keyword (e.g., "LABUBU", "ラブブ")
+        debug: If True, print debug information
+
+    Returns:
+        list: List of in-stock products
+    """
+    try:
+        api_url = f"https://cdn-global.popmart.com/shop_productoncollection-{collection_id}-1-1-jp-ja.json"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Referer': 'https://www.popmart.com/',
+        }
+
+        response = requests.get(api_url, headers=headers, timeout=30)
+        response.raise_for_status()
+
+        data = response.json()
+
+        if debug:
+            print(f"\n=== DEBUG MODE ===")
+            print(f"Collection: {data.get('name', 'Unknown')}")
+            print(f"Total products: {data.get('total', 0)}")
+            print(f"API URL: {api_url}")
+            print("==================\n")
+
+        in_stock_products = []
+
+        for product in data.get('productData', []):
+            product_title = product.get('title', '')
+
+            # Filter by keyword if specified
+            if keyword and keyword.lower() not in product_title.lower():
+                continue
+
+            # Check all SKUs for this product
+            for sku in product.get('skus', []):
+                stock = sku.get('stock', {})
+                online_stock = stock.get('onlineStock', 0)
+
+                if online_stock > 0:
+                    in_stock_products.append({
+                        'id': product.get('id'),
+                        'title': product_title,
+                        'price': sku.get('price', 0),
+                        'currency': sku.get('currency', 'JPY'),
+                        'stock': online_stock,
+                        'url': f"https://www.popmart.com/jp/products/{product.get('id')}"
+                    })
+
+                    if debug:
+                        print(f"✓ IN STOCK: {product_title}")
+                        print(f"  Price: {sku.get('price')} {sku.get('currency')}")
+                        print(f"  Stock: {online_stock}")
+                        print(f"  URL: https://www.popmart.com/jp/products/{product.get('id')}\n")
+
+        if debug and not in_stock_products:
+            print("✗ No products in stock")
+
+        return in_stock_products
+
+    except Exception as e:
+        print(f"Error checking stock: {e}")
+        raise
+
+
+def send_email_notification(smtp_server, smtp_port, username, password, recipient, products):
+    """
+    Send email notification about in-stock products
+
+    Args:
+        smtp_server: SMTP server address
+        smtp_port: SMTP server port
+        username: SMTP username
+        password: SMTP password
+        recipient: Recipient email address
+        products: List of in-stock products
+    """
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['From'] = username
+        msg['To'] = recipient
+        msg['Subject'] = f'POP MART - {len(products)}件の商品が入荷しました！'
+
+        # Create text version
+        text_lines = [
+            'POP MARTで商品が入荷しました。',
+            f'\nチェック日時: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+            f'\n入荷商品数: {len(products)}件\n'
+        ]
+
+        for i, product in enumerate(products, 1):
+            text_lines.append(f"\n{i}. {product['title']}")
+            text_lines.append(f"   価格: {product['price']:,} {product['currency']}")
+            text_lines.append(f"   在庫: {product['stock']}個")
+            text_lines.append(f"   URL: {product['url']}")
+
+        text = '\n'.join(text_lines)
+
+        # Create HTML version
+        html_lines = [
+            '<html><body>',
+            '<h2>POP MART - 商品が入荷しました！</h2>',
+            f'<p><strong>チェック日時:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>',
+            f'<p><strong>入荷商品数:</strong> {len(products)}件</p>',
+            '<hr>'
+        ]
+
+        for i, product in enumerate(products, 1):
+            html_lines.append(f'<h3>{i}. {product["title"]}</h3>')
+            html_lines.append(f'<p><strong>価格:</strong> {product["price"]:,} {product["currency"]}</p>')
+            html_lines.append(f'<p><strong>在庫:</strong> {product["stock"]}個</p>')
+            html_lines.append(f'<p><a href="{product["url"]}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">商品ページを見る</a></p>')
+            html_lines.append('<hr>')
+
+        html_lines.append('</body></html>')
+        html = '\n'.join(html_lines)
+
+        part1 = MIMEText(text, 'plain', 'utf-8')
+        part2 = MIMEText(html, 'html', 'utf-8')
+
+        msg.attach(part1)
+        msg.attach(part2)
+
+        # Send email
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(username, password)
+            server.send_message(msg)
+
+        print(f"Email notification sent successfully ({len(products)} products)")
+
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        raise
+
+
+def main():
+    """Main function"""
+    # Configuration
+    collection_id = int(os.environ.get('COLLECTION_ID', '223'))  # 223 = THE MONSTERS
+    keyword = os.environ.get('KEYWORD', '')  # Optional: filter by keyword (e.g., "LABUBU")
+
+    # Check for debug mode
+    debug_mode = os.environ.get('DEBUG_MODE', 'false').lower() == 'true'
+
+    # Get email configuration from environment variables
+    smtp_server = os.environ.get('SMTP_SERVER')
+    smtp_port = int(os.environ.get('SMTP_PORT', '587'))
+    smtp_username = os.environ.get('SMTP_USERNAME')
+    smtp_password = os.environ.get('SMTP_PASSWORD')
+    recipient_email = os.environ.get('RECIPIENT_EMAIL')
+
+    # In debug mode, email configuration is optional
+    if not debug_mode and not all([smtp_server, smtp_username, smtp_password, recipient_email]):
+        print("Error: Missing email configuration. Please set environment variables:")
+        print("  SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, RECIPIENT_EMAIL")
+        sys.exit(1)
+
+    print(f"Checking POP MART stock (Collection ID: {collection_id})")
+    if keyword:
+        print(f"Filtering by keyword: {keyword}")
+    print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    if debug_mode:
+        print("DEBUG MODE: ON")
+
+    # Check for in-stock products
+    in_stock_products = check_stock(collection_id=collection_id, keyword=keyword, debug=debug_mode)
+
+    if in_stock_products:
+        print(f"✓ Found {len(in_stock_products)} product(s) in stock!")
+        if not debug_mode:
+            send_email_notification(
+                smtp_server,
+                smtp_port,
+                smtp_username,
+                smtp_password,
+                recipient_email,
+                in_stock_products
+            )
+        else:
+            print("(Debug mode: email not sent)")
+    else:
+        print("✗ No products in stock")
+
+
+if __name__ == "__main__":
+    main()
