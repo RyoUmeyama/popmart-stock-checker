@@ -14,6 +14,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Restore stock history
+        uses: actions/cache/restore@v4
+        with:
+          path: stock_history.json
+          key: stock-history-${{ github.run_id }}
+          restore-keys: |
+            stock-history-
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -35,3 +43,10 @@ jobs:
           DEBUG_MODE: ${{ secrets.DEBUG_MODE }}
         run: |
           python check_stock.py
+
+      - name: Save stock history
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: stock_history.json
+          key: stock-history-${{ github.run_id }}

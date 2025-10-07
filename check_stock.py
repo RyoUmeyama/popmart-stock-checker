@@ -11,6 +11,29 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 import requests
+import json
+
+STOCK_HISTORY_FILE = 'stock_history.json'
+
+
+def load_previous_stock():
+    """Load previous stock status from file"""
+    if os.path.exists(STOCK_HISTORY_FILE):
+        try:
+            with open(STOCK_HISTORY_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_current_stock(product_ids):
+    """Save current stock status to file"""
+    try:
+        with open(STOCK_HISTORY_FILE, 'w') as f:
+            json.dump({'product_ids': list(product_ids), 'timestamp': datetime.now().isoformat()}, f)
+    except Exception as e:
+        print(f"Warning: Could not save stock history: {e}")
 
 
 def check_stock(collection_id=223, keyword=None, debug=False):
@@ -234,20 +257,40 @@ def main():
     in_stock_products = check_stock(collection_id=collection_id, keyword=keyword, debug=debug_mode)
 
     if in_stock_products:
+        # Load previous stock status
+        previous_stock = load_previous_stock()
+        previous_product_ids = set(previous_stock.get('product_ids', []))
+
+        # Get current product IDs
+        current_product_ids = {p['id'] for p in in_stock_products}
+
+        # Find newly added products (not in previous stock)
+        new_product_ids = current_product_ids - previous_product_ids
+        new_products = [p for p in in_stock_products if p['id'] in new_product_ids]
+
         print(f"✓ Found {len(in_stock_products)} product(s) in stock!")
-        if not debug_mode:
-            send_email_notification(
-                smtp_server,
-                smtp_port,
-                smtp_username,
-                smtp_password,
-                recipient_email,
-                in_stock_products
-            )
+        if new_products:
+            print(f"✓ {len(new_products)} new product(s) detected!")
+            if not debug_mode:
+                send_email_notification(
+                    smtp_server,
+                    smtp_port,
+                    smtp_username,
+                    smtp_password,
+                    recipient_email,
+                    new_products
+                )
+            else:
+                print("(Debug mode: email not sent)")
         else:
-            print("(Debug mode: email not sent)")
+            print("✓ No new products (all already notified)")
+
+        # Save current stock status
+        save_current_stock(current_product_ids)
     else:
         print("✗ No products in stock")
+        # Clear stock history when no products in stock
+        save_current_stock(set())
 
 
 if __name__ == "__main__":

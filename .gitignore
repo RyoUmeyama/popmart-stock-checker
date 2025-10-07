@@ -37,3 +37,6 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# Stock history
+stock_history.json
