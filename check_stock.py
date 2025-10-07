@@ -114,8 +114,7 @@ def check_stock(collection_id=223, keyword=None, debug=False):
                 if debug:
                     print(f"✓ IN STOCK: {product_title}")
                     for sku_info in product_skus:
-                        print(f"  Price: {sku_info['price']} {sku_info['currency']}, Stock: {sku_info['stock']}")
-                    print(f"  Total Stock: {total_stock}")
+                        print(f"  Price: {sku_info['price']} {sku_info['currency']} - 在庫あり")
                     print(f"  URL: https://www.popmart.com/jp/products/{product.get('id')}\n")
 
         if debug and not in_stock_products:
@@ -156,8 +155,7 @@ def send_email_notification(smtp_server, smtp_port, username, password, recipien
         for i, product in enumerate(products, 1):
             text_lines.append(f"\n{i}. {product['title']}")
             for sku in product['skus']:
-                text_lines.append(f"   価格: {sku['price']:,} {sku['currency']} (在庫: {sku['stock']}個)")
-            text_lines.append(f"   合計在庫: {product['total_stock']}個")
+                text_lines.append(f"   価格: {sku['price']:,} {sku['currency']} - 在庫あり")
             text_lines.append(f"   URL: {product['url']}")
 
         text = '\n'.join(text_lines)
@@ -175,9 +173,8 @@ def send_email_notification(smtp_server, smtp_port, username, password, recipien
             html_lines.append(f'<h3>{i}. {product["title"]}</h3>')
             html_lines.append('<ul>')
             for sku in product['skus']:
-                html_lines.append(f'<li><strong>価格:</strong> {sku["price"]:,} {sku["currency"]} (在庫: {sku["stock"]}個)</li>')
+                html_lines.append(f'<li><strong>価格:</strong> {sku["price"]:,} {sku["currency"]} - 在庫あり</li>')
             html_lines.append('</ul>')
-            html_lines.append(f'<p><strong>合計在庫:</strong> {product["total_stock"]}個</p>')
             html_lines.append(f'<p><a href="{product["url"]}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">商品ページを見る</a></p>')
             html_lines.append('<hr>')
 
