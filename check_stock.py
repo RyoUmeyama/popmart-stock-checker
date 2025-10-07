@@ -87,25 +87,36 @@ def check_stock(collection_id=223, keyword=None, debug=False):
                 continue
 
             # Check all SKUs for this product
+            product_skus = []
+            total_stock = 0
             for sku in product.get('skus', []):
                 stock = sku.get('stock', {})
                 online_stock = stock.get('onlineStock', 0)
 
                 if online_stock > 0:
-                    in_stock_products.append({
-                        'id': product.get('id'),
-                        'title': product_title,
+                    product_skus.append({
                         'price': sku.get('price', 0),
                         'currency': sku.get('currency', 'JPY'),
-                        'stock': online_stock,
-                        'url': f"https://www.popmart.com/jp/products/{product.get('id')}"
+                        'stock': online_stock
                     })
+                    total_stock += online_stock
 
-                    if debug:
-                        print(f"✓ IN STOCK: {product_title}")
-                        print(f"  Price: {sku.get('price')} {sku.get('currency')}")
-                        print(f"  Stock: {online_stock}")
-                        print(f"  URL: https://www.popmart.com/jp/products/{product.get('id')}\n")
+            # If any SKU has stock, add the product once
+            if product_skus:
+                in_stock_products.append({
+                    'id': product.get('id'),
+                    'title': product_title,
+                    'skus': product_skus,
+                    'total_stock': total_stock,
+                    'url': f"https://www.popmart.com/jp/products/{product.get('id')}"
+                })
+
+                if debug:
+                    print(f"✓ IN STOCK: {product_title}")
+                    for sku_info in product_skus:
+                        print(f"  Price: {sku_info['price']} {sku_info['currency']}, Stock: {sku_info['stock']}")
+                    print(f"  Total Stock: {total_stock}")
+                    print(f"  URL: https://www.popmart.com/jp/products/{product.get('id')}\n")
 
         if debug and not in_stock_products:
             print("✗ No products in stock")
@@ -144,8 +155,9 @@ def send_email_notification(smtp_server, smtp_port, username, password, recipien
 
         for i, product in enumerate(products, 1):
             text_lines.append(f"\n{i}. {product['title']}")
-            text_lines.append(f"   価格: {product['price']:,} {product['currency']}")
-            text_lines.append(f"   在庫: {product['stock']}個")
+            for sku in product['skus']:
+                text_lines.append(f"   価格: {sku['price']:,} {sku['currency']} (在庫: {sku['stock']}個)")
+            text_lines.append(f"   合計在庫: {product['total_stock']}個")
             text_lines.append(f"   URL: {product['url']}")
 
         text = '\n'.join(text_lines)
@@ -161,8 +173,11 @@ def send_email_notification(smtp_server, smtp_port, username, password, recipien
 
         for i, product in enumerate(products, 1):
             html_lines.append(f'<h3>{i}. {product["title"]}</h3>')
-            html_lines.append(f'<p><strong>価格:</strong> {product["price"]:,} {product["currency"]}</p>')
-            html_lines.append(f'<p><strong>在庫:</strong> {product["stock"]}個</p>')
+            html_lines.append('<ul>')
+            for sku in product['skus']:
+                html_lines.append(f'<li><strong>価格:</strong> {sku["price"]:,} {sku["currency"]} (在庫: {sku["stock"]}個)</li>')
+            html_lines.append('</ul>')
+            html_lines.append(f'<p><strong>合計在庫:</strong> {product["total_stock"]}個</p>')
             html_lines.append(f'<p><a href="{product["url"]}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">商品ページを見る</a></p>')
             html_lines.append('<hr>')
 
