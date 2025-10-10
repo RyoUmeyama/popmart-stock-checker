@@ -231,6 +231,40 @@ https://cdn-global.popmart.com/shop_productoncollection-{COLLECTION_ID}-1-{PAGE}
 
 ## 技術詳細
 
+### メール送信モジュール (email_utils.py)
+
+プロジェクトには堅牢なメール送信ユーティリティ (`email_utils.py`) が含まれています。
+
+#### 使用方法
+
+```python
+from email_utils import send_email_with_retry
+
+success = send_email_with_retry(
+    smtp_server='smtp.gmail.com',
+    smtp_port=587,
+    username='your@email.com',
+    password='app_password',
+    from_email='your@email.com',
+    to_email='recipient@email.com',
+    subject='件名',
+    text_content='プレーンテキスト',
+    html_content='<html>HTMLコンテンツ</html>',
+    max_retries=3,
+    retry_delay=5,
+    timeout=30
+)
+```
+
+#### 特徴
+
+- 自動リトライ（デフォルト3回）
+- タイムアウト設定（デフォルト30秒）
+- 詳細なログ出力
+- HTML/テキスト両対応
+
+このモジュールは他のプロジェクトでも再利用可能です。
+
 ### 在庫変動検知の仕組み
 
 在庫履歴は `stock_history.json` に保存され、GitHub Actions Cacheで実行間で永続化されます：
