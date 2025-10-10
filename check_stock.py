@@ -6,6 +6,7 @@ Checks for THE MONSTERS (LABUBU) stock availability and sends email notification
 
 import os
 import sys
+import time
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -216,16 +217,35 @@ def send_email_notification(smtp_server, smtp_port, username, password, recipien
         msg.attach(part1)
         msg.attach(part2)
 
-        # Send email
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(username, password)
-            server.send_message(msg)
+        # Send email with retry logic
+        max_retries = 3
+        retry_delay = 5  # seconds
 
-        print(f"Email notification sent successfully ({len(products)} products)")
+        for attempt in range(max_retries):
+            try:
+                with smtplib.SMTP(smtp_server, smtp_port, timeout=30) as server:
+                    server.starttls()
+                    server.login(username, password)
+                    server.send_message(msg)
+
+                print(f"Email notification sent successfully ({len(products)} products)")
+                break  # Success, exit retry loop
+
+            except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError, TimeoutError) as e:
+                if attempt < max_retries - 1:
+                    print(f"SMTP connection error (attempt {attempt + 1}/{max_retries}): {e}")
+                    print(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                else:
+                    print(f"Failed to send email after {max_retries} attempts: {e}")
+                    raise
+            except Exception as e:
+                # For other exceptions, don't retry
+                print(f"Error sending email: {e}")
+                raise
 
     except Exception as e:
-        print(f"Error sending email: {e}")
+        print(f"Error in email notification function: {e}")
         raise
 
 
