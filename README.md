@@ -132,6 +132,34 @@ schedule:
 2. URLから数字を確認（例: `/collection/223`）
 3. `COLLECTION_ID` Secretに設定
 
+## 信頼性機能
+
+### SMTPリトライロジック
+
+メール送信の信頼性を向上させるため、自動リトライ機能を実装しています：
+
+- **最大3回まで自動再試行**: 一時的なネットワークエラーやSMTP接続問題に対応
+- **30秒のタイムアウト**: 長時間の接続待ちを防止
+- **5秒の待機時間**: 各リトライ間隔
+- **詳細なログ出力**: 成功/失敗/リトライ状況を明確に表示
+
+#### 対象エラー
+
+以下のエラーが発生した場合、自動的に再試行します：
+- `SMTPServerDisconnected`: SMTP接続が予期せず切断
+- `SMTPConnectError`: SMTP接続エラー
+- `TimeoutError`: 接続タイムアウト
+
+#### ログ例
+
+```
+⚠ SMTP connection error (attempt 1/3): Connection unexpectedly closed
+  Retrying in 5 seconds...
+✓ Email sent successfully to recipient@example.com
+```
+
+全ての試行が失敗した場合のみ、エラーとしてワークフローが失敗します。
+
 ## トラブルシューティング
 
 ### メールが届かない
@@ -144,6 +172,14 @@ schedule:
    - GitHub ActionsのIPアドレスがGmailにブロックされている可能性があります
    - `DEBUG_MODE` Secretを `true` に設定してメール送信をスキップし、ログで在庫状況を確認できます
    - 別のSMTPサービス（SendGrid、Mailgun等）の使用を検討してください
+
+### 一時的なSMTP接続エラー
+
+**症状**: `Connection unexpectedly closed` エラーが時々発生
+
+**原因**: Gmail SMTPサーバーまたはGitHub Actionsの一時的なネットワーク問題
+
+**対策**: 自動リトライロジックにより3回まで再試行されます。ほとんどの一時的なエラーは自動的に解決されます
 
 ### ワークフローが実行されない
 
