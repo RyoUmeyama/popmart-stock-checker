@@ -221,17 +221,29 @@ def send_email_notification(smtp_server, smtp_port, username, password, recipien
         max_retries = 3
         retry_delay = 5  # seconds
 
+        print(f"Attempting to send email via {smtp_server}:{smtp_port}")
+
         for attempt in range(max_retries):
             try:
-                with smtplib.SMTP(smtp_server, smtp_port, timeout=30) as server:
+                # Use SMTP_SSL for port 465, SMTP with STARTTLS for port 587
+                if smtp_port == 465:
+                    print(f"Using SMTP_SSL (port {smtp_port})")
+                    server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=30)
+                else:
+                    print(f"Using SMTP with STARTTLS (port {smtp_port})")
+                    server = smtplib.SMTP(smtp_server, smtp_port, timeout=30)
+                    server.ehlo()
                     server.starttls()
-                    server.login(username, password)
-                    server.send_message(msg)
+                    server.ehlo()
+
+                server.login(username, password)
+                server.send_message(msg)
+                server.quit()
 
                 print(f"Email notification sent successfully ({len(products)} products)")
                 break  # Success, exit retry loop
 
-            except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError, TimeoutError) as e:
+            except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError, TimeoutError, OSError) as e:
                 if attempt < max_retries - 1:
                     print(f"SMTP connection error (attempt {attempt + 1}/{max_retries}): {e}")
                     print(f"Retrying in {retry_delay} seconds...")
