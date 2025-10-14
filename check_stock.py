@@ -222,6 +222,8 @@ def send_email_notification(smtp_server, smtp_port, username, password, recipien
         retry_delay = 5  # seconds
 
         print(f"Attempting to send email via {smtp_server}:{smtp_port}")
+        print(f"Username: {username}")
+        print(f"Password length: {len(password)} characters")
 
         for attempt in range(max_retries):
             try:
