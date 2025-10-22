@@ -11,6 +11,7 @@ POP MARTのTHE MONSTERS（ラブブ等）コレクションの在庫状況を自
 - 商品ごとの在庫状況表示（SKU別）
 - 在庫変動の追跡（前回との差分検知）
 - **全商品リスト表示ツール**（`list_all_products.py`）
+- **視覚的なHTMLレポート生成**（`generate_html_report.py`）
 - GitHub Actions で完全無料運用（publicリポジトリ）
 
 ## セットアップ手順
@@ -114,9 +115,15 @@ python list_all_products.py --show-all
 
 # 別のコレクションを指定
 python list_all_products.py --collection-id 241
+
+# HTMLレポートを生成してブラウザで開く
+python list_all_products.py && python generate_html_report.py && open stock_report.html
 ```
 
-**注意**: ローカルテストでは `stock_history.json` と `all_products.json` が作成されます。これらのファイルは在庫追跡に使用されるため、`.gitignore` に追加済みです。
+**注意**: ローカルテストでは以下のファイルが作成されます。これらのファイルは在庫追跡に使用されるため、`.gitignore` に追加済みです：
+- `stock_history.json` - 在庫履歴
+- `all_products.json` - 全商品データ（JSON）
+- `stock_report.html` - 視覚的なHTMLレポート
 
 ## カスタマイズ
 
@@ -313,6 +320,45 @@ python list_all_products.py --collection-id 241
 - 商品URL
 
 このツールは、特定の商品の在庫状況を手動で確認したい場合や、コレクション全体の商品数を把握したい場合に便利です。
+
+### HTMLレポート生成ツール (generate_html_report.py)
+
+`all_products.json` から視覚的なHTMLレポートを生成するツールです。
+
+#### 使用方法
+
+```bash
+# 基本的な使い方
+python generate_html_report.py
+
+# カスタム入出力ファイル
+python generate_html_report.py --input all_products.json --output stock_report.html
+
+# ワンライナーで全て実行
+python list_all_products.py && python generate_html_report.py && open stock_report.html
+```
+
+#### 特徴
+
+- **美しいデザイン**: グラデーション背景とカードレイアウト
+- **統計サマリー**: 総商品数、在庫あり、売り切れの数を一目で確認
+- **フィルタリング機能**: 全て / 在庫あり / 売り切れ / 新着 / 人気
+- **商品カード**:
+  - 🆕 NEW バッジ（新着商品）
+  - 🔥 HOT バッジ（人気商品）
+  - 在庫状況（色分け：緑=在庫あり、赤=売り切れ）
+  - 商品ページへの直リンク
+- **レスポンシブデザイン**: スマートフォンでも見やすい
+
+#### 出力例
+
+HTMLレポートは以下の情報を含みます：
+- コレクション名とID
+- 更新日時（JST）
+- 在庫状況の統計
+- 全商品の詳細（フィルタ可能）
+
+ブラウザで開くと、視覚的に全商品の在庫状況を確認できます。
 
 ### 在庫変動検知の仕組み
 
