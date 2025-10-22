@@ -56,7 +56,12 @@ def load_previous_uptimes():
 
 
 def save_current_uptimes(uptime_data):
-    """Save current upTime tracking to file"""
+    """
+    Save current upTime tracking to file
+
+    Args:
+        uptime_data: Dict with format {'product_id_uptime': {...}, ...}
+    """
     try:
         with open(UPTIME_HISTORY_FILE, 'w') as f:
             json.dump(uptime_data, f)
@@ -500,18 +505,23 @@ def main():
     if upcoming_products:
         # Load previous upTime data
         previous_uptimes = load_previous_uptimes()
-        previous_product_ids = set(previous_uptimes.get('product_ids', []))
 
-        # Get current upcoming product IDs
-        current_product_ids = {p['id'] for p in upcoming_products}
+        # Create current upTime tracking: {product_id: upTime}
+        current_uptimes = {p['id']: p['upTime'] for p in upcoming_products}
 
-        # Find newly scheduled products (not in previous upTime tracking)
-        new_upcoming_ids = current_product_ids - previous_product_ids
-        new_upcoming_products = [p for p in upcoming_products if p['id'] in new_upcoming_ids]
+        # Find newly scheduled products or products with changed upTime
+        new_upcoming_products = []
+        for product in upcoming_products:
+            product_id = product['id']
+            current_uptime = product['upTime']
+
+            # Check if this is a new product or if upTime has changed
+            if product_id not in previous_uptimes or previous_uptimes.get(product_id) != current_uptime:
+                new_upcoming_products.append(product)
 
         print(f"✓ Found {len(upcoming_products)} upcoming sale(s)!")
         if new_upcoming_products:
-            print(f"✓ {len(new_upcoming_products)} new upcoming sale(s) detected!")
+            print(f"✓ {len(new_upcoming_products)} new/updated upcoming sale(s) detected!")
             if not debug_mode:
                 send_upcoming_sale_notification(
                     smtp_server,
@@ -523,15 +533,21 @@ def main():
                 )
             else:
                 print("(Debug mode: email not sent)")
+                for p in new_upcoming_products:
+                    if p['id'] in previous_uptimes:
+                        print(f"  - {p['title']}: upTime changed from {previous_uptimes[p['id']]} to {p['upTime']}")
+                    else:
+                        print(f"  - {p['title']}: new upcoming sale")
         else:
-            print("✓ No new upcoming sales (all already notified)")
+            print("✓ No new/updated upcoming sales (all already notified)")
 
-        # Save current upTime status
-        save_current_uptimes({'product_ids': list(current_product_ids), 'timestamp': get_jst_now().isoformat()})
+        # Save current upTime status: {product_id: upTime, ...}
+        current_uptimes['timestamp'] = get_jst_now().isoformat()
+        save_current_uptimes(current_uptimes)
     else:
         print("✗ No upcoming sales detected")
         # Clear upTime history when no upcoming sales
-        save_current_uptimes({'product_ids': [], 'timestamp': get_jst_now().isoformat()})
+        save_current_uptimes({'timestamp': get_jst_now().isoformat()})
 
     # Check for in-stock products
     print("\n=== Checking for in-stock products ===")
