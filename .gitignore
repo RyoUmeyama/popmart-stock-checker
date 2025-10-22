@@ -38,5 +38,6 @@ Thumbs.db
 .env
 .env.local
 
-# Stock history
+# Stock history and product data
 stock_history.json
+all_products.json
