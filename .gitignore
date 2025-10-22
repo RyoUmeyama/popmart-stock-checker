@@ -40,5 +40,6 @@ Thumbs.db
 
 # Stock history and product data
 stock_history.json
+uptime_history.json
 all_products.json
 stock_report.html

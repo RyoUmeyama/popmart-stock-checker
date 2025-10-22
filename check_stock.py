@@ -15,6 +15,7 @@ import requests
 import json
 
 STOCK_HISTORY_FILE = 'stock_history.json'
+UPTIME_HISTORY_FILE = 'uptime_history.json'
 JST = timezone(timedelta(hours=9))
 
 
@@ -41,6 +42,105 @@ def save_current_stock(product_ids):
             json.dump({'product_ids': list(product_ids), 'timestamp': get_jst_now().isoformat()}, f)
     except Exception as e:
         print(f"Warning: Could not save stock history: {e}")
+
+
+def load_previous_uptimes():
+    """Load previous upTime tracking from file"""
+    if os.path.exists(UPTIME_HISTORY_FILE):
+        try:
+            with open(UPTIME_HISTORY_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_current_uptimes(uptime_data):
+    """Save current upTime tracking to file"""
+    try:
+        with open(UPTIME_HISTORY_FILE, 'w') as f:
+            json.dump(uptime_data, f)
+    except Exception as e:
+        print(f"Warning: Could not save uptime history: {e}")
+
+
+def check_upcoming_sales(collection_id=223, keyword=None, debug=False):
+    """
+    Check for products with future upTime (upcoming sales)
+
+    Args:
+        collection_id: Collection ID to check
+        keyword: Filter products by keyword
+        debug: If True, print debug information
+
+    Returns:
+        tuple: (all_products, upcoming_products)
+    """
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Accept': '*/*',
+            'Referer': 'https://www.popmart.com/',
+        }
+
+        all_products = []
+        page = 1
+
+        while True:
+            api_url = f"https://cdn-global.popmart.com/shop_productoncollection-{collection_id}-1-{page}-jp-ja.json"
+
+            try:
+                response = requests.get(api_url, headers=headers, timeout=30)
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 404:
+                    break
+                raise
+
+            data = response.json()
+            products = data.get('productData', [])
+            if not products:
+                break
+
+            all_products.extend(products)
+            page += 1
+
+        # Current timestamp
+        now_timestamp = int(get_jst_now().timestamp())
+
+        # Find products with future upTime
+        upcoming_products = []
+
+        for product in all_products:
+            product_title = product.get('title', '')
+
+            # Filter by keyword if specified
+            if keyword and keyword.lower() not in product_title.lower():
+                continue
+
+            up_time = product.get('upTime', 0)
+
+            # Check if upTime is in the future (upcoming sale)
+            if up_time > now_timestamp:
+                sale_datetime = datetime.fromtimestamp(up_time, JST)
+                upcoming_products.append({
+                    'id': product.get('id'),
+                    'title': product_title,
+                    'upTime': up_time,
+                    'upTime_str': sale_datetime.strftime('%Y-%m-%d %H:%M:%S'),
+                    'url': f"https://www.popmart.com/jp/products/{product.get('id')}"
+                })
+
+                if debug:
+                    print(f"⏰ UPCOMING: {product_title}")
+                    print(f"   Sale starts: {sale_datetime.strftime('%Y-%m-%d %H:%M:%S')} JST")
+                    print(f"   URL: https://www.popmart.com/jp/products/{product.get('id')}\n")
+
+        return all_products, upcoming_products
+
+    except Exception as e:
+        print(f"Error checking upcoming sales: {e}")
+        raise
 
 
 def check_stock(collection_id=223, keyword=None, debug=False):
@@ -154,6 +254,106 @@ def check_stock(collection_id=223, keyword=None, debug=False):
 
     except Exception as e:
         print(f"Error checking stock: {e}")
+        raise
+
+
+def send_upcoming_sale_notification(smtp_server, smtp_port, username, password, recipient, products):
+    """
+    Send email notification about upcoming scheduled sales
+
+    Args:
+        smtp_server: SMTP server address
+        smtp_port: SMTP server port
+        username: SMTP username
+        password: SMTP password
+        recipient: Recipient email address
+        products: List of upcoming sale products
+    """
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['From'] = username
+        msg['To'] = recipient
+        msg['Subject'] = f'POP MART - {len(products)}件の再販が予定されています！'
+
+        # Create text version
+        text_lines = [
+            'POP MARTで商品の再販が予定されています。',
+            f'\nチェック日時: {get_jst_now().strftime("%Y-%m-%d %H:%M:%S")} (JST)',
+            f'\n再販予定商品数: {len(products)}件\n'
+        ]
+
+        for i, product in enumerate(products, 1):
+            text_lines.append(f"\n{i}. {product['title']}")
+            text_lines.append(f"   販売開始: {product['upTime_str']} (JST)")
+            text_lines.append(f"   URL: {product['url']}")
+
+        text = '\n'.join(text_lines)
+
+        # Create HTML version
+        html_lines = [
+            '<html><body>',
+            '<h2>POP MART - 商品の再販が予定されています！</h2>',
+            f'<p><strong>チェック日時:</strong> {get_jst_now().strftime("%Y-%m-%d %H:%M:%S")} (JST)</p>',
+            f'<p><strong>再販予定商品数:</strong> {len(products)}件</p>',
+            '<hr>'
+        ]
+
+        for i, product in enumerate(products, 1):
+            html_lines.append(f'<h3>{i}. {product["title"]}</h3>')
+            html_lines.append(f'<p><strong>⏰ 販売開始:</strong> {product["upTime_str"]} (JST)</p>')
+            html_lines.append(f'<p><a href="{product["url"]}" style="background-color: #FF6B35; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">商品ページを見る</a></p>')
+            html_lines.append('<hr>')
+
+        html_lines.append('</body></html>')
+        html = '\n'.join(html_lines)
+
+        part1 = MIMEText(text, 'plain', 'utf-8')
+        part2 = MIMEText(html, 'html', 'utf-8')
+
+        msg.attach(part1)
+        msg.attach(part2)
+
+        # Send email with retry logic
+        max_retries = 3
+        retry_delay = 5  # seconds
+
+        print(f"Attempting to send email via {smtp_server}:{smtp_port}")
+
+        for attempt in range(max_retries):
+            try:
+                # Use SMTP_SSL for port 465, SMTP with STARTTLS for port 587
+                if smtp_port == 465:
+                    print(f"Using SMTP_SSL (port {smtp_port})")
+                    server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=30)
+                else:
+                    print(f"Using SMTP with STARTTLS (port {smtp_port})")
+                    server = smtplib.SMTP(smtp_server, smtp_port, timeout=30)
+                    server.ehlo()
+                    server.starttls()
+                    server.ehlo()
+
+                server.login(username, password)
+                server.send_message(msg)
+                server.quit()
+
+                print(f"Email notification sent successfully for upcoming sales ({len(products)} products)")
+                break  # Success, exit retry loop
+
+            except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError, TimeoutError, OSError) as e:
+                if attempt < max_retries - 1:
+                    print(f"SMTP connection error (attempt {attempt + 1}/{max_retries}): {e}")
+                    print(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                else:
+                    print(f"Failed to send email after {max_retries} attempts: {e}")
+                    raise
+            except Exception as e:
+                # For other exceptions, don't retry
+                print(f"Error sending email: {e}")
+                raise
+
+    except Exception as e:
+        print(f"Error in email notification function: {e}")
         raise
 
 
@@ -293,7 +493,48 @@ def main():
     if debug_mode:
         print("DEBUG MODE: ON")
 
+    # Check for upcoming sales (products with future upTime)
+    print("\n=== Checking for upcoming sales ===")
+    _, upcoming_products = check_upcoming_sales(collection_id=collection_id, keyword=keyword, debug=debug_mode)
+
+    if upcoming_products:
+        # Load previous upTime data
+        previous_uptimes = load_previous_uptimes()
+        previous_product_ids = set(previous_uptimes.get('product_ids', []))
+
+        # Get current upcoming product IDs
+        current_product_ids = {p['id'] for p in upcoming_products}
+
+        # Find newly scheduled products (not in previous upTime tracking)
+        new_upcoming_ids = current_product_ids - previous_product_ids
+        new_upcoming_products = [p for p in upcoming_products if p['id'] in new_upcoming_ids]
+
+        print(f"✓ Found {len(upcoming_products)} upcoming sale(s)!")
+        if new_upcoming_products:
+            print(f"✓ {len(new_upcoming_products)} new upcoming sale(s) detected!")
+            if not debug_mode:
+                send_upcoming_sale_notification(
+                    smtp_server,
+                    smtp_port,
+                    smtp_username,
+                    smtp_password,
+                    recipient_email,
+                    new_upcoming_products
+                )
+            else:
+                print("(Debug mode: email not sent)")
+        else:
+            print("✓ No new upcoming sales (all already notified)")
+
+        # Save current upTime status
+        save_current_uptimes({'product_ids': list(current_product_ids), 'timestamp': get_jst_now().isoformat()})
+    else:
+        print("✗ No upcoming sales detected")
+        # Clear upTime history when no upcoming sales
+        save_current_uptimes({'product_ids': [], 'timestamp': get_jst_now().isoformat()})
+
     # Check for in-stock products
+    print("\n=== Checking for in-stock products ===")
     in_stock_products = check_stock(collection_id=collection_id, keyword=keyword, debug=debug_mode)
 
     if in_stock_products:
