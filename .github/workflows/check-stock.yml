@@ -17,7 +17,9 @@ jobs:
       - name: Restore stock history
         uses: actions/cache/restore@v4
         with:
-          path: stock_history.json
+          path: |
+            stock_history.json
+            uptime_history.json
           key: stock-history-${{ github.run_id }}
           restore-keys: |
             stock-history-
@@ -48,5 +50,7 @@ jobs:
         uses: actions/cache/save@v4
         if: always()
         with:
-          path: stock_history.json
+          path: |
+            stock_history.json
+            uptime_history.json
           key: stock-history-${{ github.run_id }}
