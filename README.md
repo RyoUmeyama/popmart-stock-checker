@@ -10,6 +10,7 @@ POP MARTのTHE MONSTERS（ラブブ等）コレクションの在庫状況を自
 - ページネーション対応（全商品を自動取得）
 - 商品ごとの在庫状況表示（SKU別）
 - 在庫変動の追跡（前回との差分検知）
+- **全商品リスト表示ツール**（`list_all_products.py`）
 - GitHub Actions で完全無料運用（publicリポジトリ）
 
 ## セットアップ手順
@@ -101,9 +102,21 @@ DEBUG_MODE=true KEYWORD=LABUBU python check_stock.py
 
 # 在庫履歴をリセット
 rm stock_history.json
+
+# 全商品リストを表示
+python list_all_products.py
+
+# 特定のキーワードでフィルタ
+python list_all_products.py --filter "LABUBU"
+
+# 売り切れ商品も含めて全て表示
+python list_all_products.py --show-all
+
+# 別のコレクションを指定
+python list_all_products.py --collection-id 241
 ```
 
-**注意**: ローカルテストでは `stock_history.json` が作成されます。このファイルは在庫追跡に使用されるため、`.gitignore` に追加済みです。
+**注意**: ローカルテストでは `stock_history.json` と `all_products.json` が作成されます。これらのファイルは在庫追跡に使用されるため、`.gitignore` に追加済みです。
 
 ## カスタマイズ
 
@@ -264,6 +277,42 @@ success = send_email_with_retry(
 - HTML/テキスト両対応
 
 このモジュールは他のプロジェクトでも再利用可能です。
+
+### 全商品リスト表示ツール (list_all_products.py)
+
+コレクション内の全商品と在庫状況を一覧表示するツールです。
+
+#### 使用方法
+
+```bash
+# 基本的な使い方（在庫ありの商品のみ表示）
+python list_all_products.py
+
+# 売り切れ商品も含めて全て表示
+python list_all_products.py --show-all
+
+# 商品名でフィルタリング
+python list_all_products.py --filter "PIN FOR LOVE"
+python list_all_products.py --filter "LABUBU" --show-all
+
+# 別のコレクションを指定
+python list_all_products.py --collection-id 241
+```
+
+#### 出力
+
+- コンソール: 在庫状況のサマリーと商品リスト
+- `all_products.json`: 全商品データ（JSON形式）
+
+#### 表示内容
+
+- 商品ID
+- 商品名
+- 在庫状況（SKU別）
+- 新着/人気バッジ
+- 商品URL
+
+このツールは、特定の商品の在庫状況を手動で確認したい場合や、コレクション全体の商品数を把握したい場合に便利です。
 
 ### 在庫変動検知の仕組み
 
