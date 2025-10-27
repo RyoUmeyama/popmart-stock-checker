@@ -20,8 +20,9 @@ jobs:
           path: |
             stock_history.json
             uptime_history.json
-          key: stock-history-${{ github.run_id }}
+          key: stock-history-${{ github.sha }}-${{ github.run_number }}
           restore-keys: |
+            stock-history-${{ github.sha }}-
             stock-history-
 
       - name: Set up Python
@@ -53,4 +54,4 @@ jobs:
           path: |
             stock_history.json
             uptime_history.json
-          key: stock-history-${{ github.run_id }}
+          key: stock-history-${{ github.sha }}-${{ github.run_number }}
